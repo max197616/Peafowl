@@ -290,6 +290,7 @@ u_int8_t check_http(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsi
 	debug_print("%s\n","-------------------------------------------");
 	debug_print("%s\n", "[http.c] Executing HTTP inspector...");
 
+	
 	http_parser* parser=&(tracking->http[pkt->direction]);
 
 	/**
@@ -349,7 +350,7 @@ u_int8_t check_http(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsi
 
 	http_parser_execute(parser, &x, (const char*) app_data, data_length);
 
-	if(parser->http_errno==HPE_OK){
+	if(parser->http_errno == HPE_OK){
 		debug_print("%s\n", "[http.c] HTTP matches");
 		return DPI_PROTOCOL_MATCHES;
 	}else{

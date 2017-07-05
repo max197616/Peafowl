@@ -153,6 +153,10 @@ u_int32_t dpi_compute_v6_hash_function(
 		dpi_flow_DB_v6_t *db,
 		const dpi_pkt_infos_t* const pkt_infos);
 
+uint32_t dpi_compute_hash_v4_function_new(dpi_flow_DB_v4_t *db, uint32_t hash);
+
+uint32_t dpi_compute_hash_v6_function_new(dpi_flow_DB_v6_t *db, uint32_t hash);
+
 ipv4_flow_t* mc_dpi_flow_table_find_or_create_flow_v4(
 		dpi_library_state_t* state, u_int16_t partition_id,
 		u_int32_t index, dpi_pkt_infos_t* pkt_infos);

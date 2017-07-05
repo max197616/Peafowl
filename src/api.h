@@ -112,6 +112,13 @@ enum dpi_http_methods{
 #undef XX
  };
 
+struct flow_table_stat
+{
+	uint16_t num_partitions;
+	uint64_t active_flows;
+	uint64_t max_active_flows;
+};
+
 
 typedef struct dpi_identification_result{
 	int8_t status;
@@ -176,6 +183,12 @@ typedef struct dpi_http_message_informations{
  * @param flow_specific_user_data A pointer to the user data specific to this flow.
  */
 typedef void(dpi_flow_cleaner_callback)(void* flow_specific_user_data);
+
+
+/**
+ * Called when ssl inspector seen certificate
+**/
+typedef void(dpi_ssl_certificate_callback)(char *certificate, int size, void *user_data);
 
 /**
  * This callback is called when the corresponding header field is found.
@@ -320,6 +333,23 @@ typedef struct dpi_http_internal_informations{
 	size_t temp_buffer_size;
 }dpi_http_internal_informations_t;
 
+
+typedef struct dpi_ssl_callbacks
+{
+	dpi_ssl_certificate_callback *certificate_callback;
+} dpi_ssl_callbacks_t;
+
+typedef struct dpi_ssl_internal_information
+{
+	dpi_ssl_callbacks_t *callbacks;
+	void *callbacks_user_data;
+	uint8_t *pkt_buffer;
+	int pkt_size;
+//	char *client_certificate;
+//	char *server_certificate;
+	uint8_t ssl_detected;
+} dpi_ssl_internal_information_t;
+
 /** This must be initialized to zero before use. **/
 typedef struct dpi_tracking_informations{
 	/**
@@ -378,6 +408,9 @@ typedef struct dpi_tracking_informations{
 	/** POP3 Tracking informations. **/
 	/*********************************/
 	u_int8_t num_pop3_matched_messages:2;
+
+	/*** SSL ***/
+	dpi_ssl_internal_information_t ssl_information[2];
 }dpi_tracking_informations_t;
 
 typedef struct library_state dpi_library_state_t;
@@ -430,6 +463,10 @@ struct library_state{
 	/** HTTP callbacks. **/
 	void* http_callbacks;
 	void* http_callbacks_user_data;
+
+	/** SSL callbacks **/
+	void *ssl_callbacks;
+	void *ssl_callbacks_user_data;
 
 	u_int8_t tcp_reordering_enabled:1;
 
@@ -983,6 +1020,15 @@ u_int8_t dpi_http_activate_callbacks(
 u_int8_t dpi_http_disable_callbacks(dpi_library_state_t* state);
 
 
+/**
+    SSL callbacks.
+**/
+u_int8_t dpi_ssl_activate_callbacks(
+		       dpi_library_state_t* state,
+		       dpi_ssl_callbacks_t* callbacks,
+		       void* user_data);
+u_int8_t dpi_ssl_disable_callbacks(dpi_library_state_t* state);
+
 
 /****************************************/
 /** Only to be used directly by mcdpi. **/
@@ -997,6 +1043,9 @@ int8_t mc_dpi_extract_packet_infos(
 		       const unsigned char* p_pkt,
 		       u_int32_t p_length, dpi_pkt_infos_t *pkt_infos,
 		       u_int32_t current_time, int tid);
+
+void get_flow_stat_v4(void *db, struct flow_table_stat *stat);
+void get_flow_stat_v6(void *db, struct flow_table_stat *stat);
 
 #ifdef __cplusplus
 }

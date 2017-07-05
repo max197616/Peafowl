@@ -406,6 +406,9 @@ dpi_tcp_reordering_reordered_segment_t dpi_reordering_tcp_track_connection(
 				    pkt->direction);
 
 		to_return.status=DPI_TCP_REORDERING_STATUS_IN_ORDER;
+#ifdef DPI_MIRROR_MODE
+		tracking->seen_syn_ack = 1;
+#endif
 		return to_return;
 	}else if(tcph->syn!=0 && tcph->ack!=0 && tracking->seen_syn==1 &&
 			 tracking->seen_syn_ack==0	&& tracking->seen_ack==0){

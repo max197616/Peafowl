@@ -23,7 +23,7 @@ ipv6_reassembly.o: ipv6_reassembly.cpp
 hash_functions.o: hash_functions.cpp
 	$(CXX) $(INCS) $(CXXFLAGS) $(OPTIMIZE_FLAGS) $(CONFIGURATIONFLAGS) -c hash_functions.cpp -o hash_functions.o
 flow_table.o: flow_table.c
-	$(CC) $(INCS) $(CXXFLAGS) $(OPTIMIZE_FLAGS) $(CONFIGURATIONFLAGS) -c flow_table.c -o flow_table.o
+	$(CC) $(INCS) $(CXXFLAGS) $(OPTIMIZE_FLAGS) $(CONFIGURATIONFLAGS) -g -c flow_table.c -o flow_table.o
 api.o: api.c
 	make -C ./inspectors
 	$(CC) $(INCS) $(CXXFLAGS) $(OPTIMIZE_FLAGS) $(CONFIGURATIONFLAGS) -c api.c -o api.o

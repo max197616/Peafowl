@@ -28,6 +28,8 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+#define DPI_DEBUG 1
+
 #define DPI_CACHE_LINE_SIZE 64
 
 /*******************************************************************/

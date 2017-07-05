@@ -583,6 +583,8 @@ void mc_dpi_flow_table_delete_flow_v4(
 	--db->partitions[partition_id].partition.informations.active_flows;
 	free(to_delete->infos.tracking.http_informations[0].temp_buffer);
 	free(to_delete->infos.tracking.http_informations[1].temp_buffer);
+	free(to_delete->infos.tracking.ssl_information[0].pkt_buffer);
+	free(to_delete->infos.tracking.ssl_information[1].pkt_buffer);
 	dpi_reordering_tcp_delete_all_fragments(&(to_delete->infos.tracking));
 
 #if DPI_FLOW_TABLE_USE_MEMORY_POOL
@@ -621,6 +623,8 @@ void mc_dpi_flow_table_delete_flow_v6(
 	--db->partitions[partition_id].partition.informations.active_flows;
 	free(to_delete->infos.tracking.http_informations[0].temp_buffer);
 	free(to_delete->infos.tracking.http_informations[1].temp_buffer);
+	free(to_delete->infos.tracking.ssl_information[0].pkt_buffer);
+	free(to_delete->infos.tracking.ssl_information[1].pkt_buffer);
 	dpi_reordering_tcp_delete_all_fragments(&(to_delete->infos.tracking));
 
 #if DPI_FLOW_TABLE_USE_MEMORY_POOL
@@ -891,6 +895,12 @@ u_int32_t dpi_compute_v4_hash_function(
 	return row;
 }
 
+uint32_t dpi_compute_hash_v4_function_new(dpi_flow_DB_v4_t *db, uint32_t hash)
+{
+	return (hash % db->total_size);
+}
+
+
 ipv4_flow_t* dpi_flow_table_find_or_create_flow_v4(
 		dpi_library_state_t* state,
 		dpi_pkt_infos_t* pkt_infos){
@@ -1018,6 +1028,11 @@ u_int32_t dpi_compute_v6_hash_function(
 	u_int32_t row=v6_hash_function_simple(pkt_infos)%db->total_size;
 #endif
 	return row;
+}
+
+uint32_t dpi_compute_hash_v6_function_new(dpi_flow_DB_v6_t *db, uint32_t hash)
+{
+	return (hash % db->total_size);
 }
 
 ipv6_flow_t* dpi_flow_table_find_or_create_flow_v6(
@@ -1184,4 +1199,30 @@ void dpi_flow_table_delete_v6(
 }
 
 
+void get_flow_stat_v4(void *dbi, struct flow_table_stat *stat)
+{
+	dpi_flow_DB_v4_t* db = (dpi_flow_DB_v4_t *)dbi;
+	bzero(stat, sizeof(struct flow_table_stat));
+	stat->num_partitions = db->num_partitions;
+	int i;
+	for(i = 0; i < db->num_partitions; i++)
+	{
+		stat->active_flows += db->partitions[i].partition.informations.active_flows;
+		stat->max_active_flows += db->partitions[i].partition.informations.max_active_flows;
+	}
+}
+
+void get_flow_stat_v6(void *dbi, struct flow_table_stat *stat)
+{
+	dpi_flow_DB_v6_t *db = (dpi_flow_DB_v6_t *)dbi;
+	stat->num_partitions = db->num_partitions;
+	bzero(stat, sizeof(struct flow_table_stat));
+	stat->num_partitions = db->num_partitions;
+	int i;
+	for(i = 0; i < db->num_partitions; i++)
+	{
+		stat->active_flows += db->partitions[i].partition.informations.active_flows;
+		stat->max_active_flows += db->partitions[i].partition.informations.max_active_flows;
+	}
+}
 
