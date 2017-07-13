@@ -256,10 +256,14 @@ dpi_tcp_reordering_reordered_segment_t
 		 * order segments, then the TCP connection is terminated and
 		 * we can delete the flow informations.
 		 **/
+#ifndef DPI_MIRROR_MODE
 		if(BIT_IS_SET(tracking->seen_fin, 0) &&
 		   BIT_IS_SET(tracking->seen_fin, 1) &&
 		   tracking->segments[0]==NULL &&
 		   tracking->segments[1]==NULL){
+#else
+		if(BIT_IS_SET(tracking->seen_fin,0) && tracking->segments[0] == NULL){
+#endif
 			to_return.connection_terminated=1;
 		}
 
@@ -348,8 +352,12 @@ u_int8_t dpi_reordering_tcp_track_connection_light(
 	 * If both FIN segments arrived, then the TCP connection is
 	 * terminated and we can delete the flow informations.
 	 **/
+#ifndef DPI_MIRROR_MODE
 	if(BIT_IS_SET(tracking->seen_fin, 0) &&
 	   BIT_IS_SET(tracking->seen_fin, 1)){
+#else
+	if(BIT_IS_SET(tracking->seen_fin, 0)){
+#endif
 		return 1;
 	}
 	return 0;
