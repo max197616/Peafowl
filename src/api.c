@@ -1358,6 +1358,10 @@ dpi_identification_result_t dpi_stateless_get_app_protocol(
 			return r;
 		}
 
+		if(seg.connection_terminated){
+			r.status=DPI_STATUS_TCP_CONNECTION_TERMINATED;
+		}
+
 		/**
 		 * If we have no payload we don't do anything. We already
 		 * invoked the TCP reordering to update the connection state.

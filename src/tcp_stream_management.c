@@ -456,6 +456,12 @@ dpi_tcp_reordering_reordered_segment_t dpi_reordering_tcp_track_connection(
 	     */
 	    return dpi_reordering_tcp_analyze_sequence_numbers(pkt, tracking);
 	}else{
+		if(tcph->rst == 1)
+		{
+			tracking->seen_rst = 1;
+			to_return.connection_terminated = 1;
+			return to_return;
+		}
 		/**
 		 *  Received segments from connections from which we didn't see
 		 *  the syn. We observe the sequence numbers and acknowledgment

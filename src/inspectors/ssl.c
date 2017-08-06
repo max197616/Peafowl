@@ -106,7 +106,7 @@ static void stripCertificateTrailer(char *buffer, int buffer_len)
 	}
 }
 
-static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_internal_information_t *t)
+static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_internal_information_t *t, dpi_pkt_infos_t* pkt)
 {
 	if(payload[0] == 0x16 /* Handshake */)
 	{
@@ -180,7 +180,7 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 							{
 								if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL && len > 0)
 								{
-									(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data);
+									(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data, pkt);
 								}
 								return 2;
 							}
@@ -240,21 +240,8 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 											}
 											if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL && len > 0)
 											{
-												(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data);
+												(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data, pkt);
 											}
-#if 0
-											if(t->client_certificate == NULL)
-											{
-												t->client_certificate = (char *)calloc(1, len + 1);
-												memcpy(t->client_certificate, &server_name[begin], len);
-												stripCertificateTrailer(t->client_certificate, len);
-//												debug_print("Calling %p\n", *t->callbacks->certificate_callback);
-												if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL)
-												{
-													(*(t->callbacks->certificate_callback))(t->client_certificate, len, t->callbacks_user_data);
-												}
-											}
-#endif
 											return 2;
 										}
 										extension_offset += extension_len;
@@ -271,11 +258,11 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 	return 0;
 }
 
-static int detectSSLFromCertificate(uint8_t *payload, int payload_len, dpi_ssl_internal_information_t *t)
+static int detectSSLFromCertificate(uint8_t *payload, int payload_len, dpi_ssl_internal_information_t *t, dpi_pkt_infos_t* pkt)
 {
 	if((payload_len > 9) && (payload[0] == 0x16 /* consider only specific SSL packets (handshake) */))
 	{
-		int rc = getSSLcertificate(payload, payload_len, t);
+		int rc = getSSLcertificate(payload, payload_len, t, pkt);
 		if(rc > 0)
 		{
 			return rc;
@@ -314,7 +301,7 @@ u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsig
 	}
 	if(t->ssl_information[pkt->direction].pkt_buffer == NULL)
 	{
-		res = detectSSLFromCertificate((uint8_t *)payload, data_length, &t->ssl_information[pkt->direction]);
+		res = detectSSLFromCertificate((uint8_t *)payload, data_length, &t->ssl_information[pkt->direction], pkt);
 		debug_print("Result %d\n", res);
 		if(res > 0)
 		{
@@ -332,7 +319,7 @@ u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsig
 		t->ssl_information[pkt->direction].pkt_buffer = (uint8_t *)realloc(t->ssl_information[pkt->direction].pkt_buffer, t->ssl_information[pkt->direction].pkt_size+data_length);
 		memcpy(t->ssl_information[pkt->direction].pkt_buffer+t->ssl_information[pkt->direction].pkt_size, payload, data_length);
 		t->ssl_information[pkt->direction].pkt_size += data_length;
-		res = detectSSLFromCertificate(t->ssl_information[pkt->direction].pkt_buffer, t->ssl_information[pkt->direction].pkt_size, &t->ssl_information[pkt->direction]);
+		res = detectSSLFromCertificate(t->ssl_information[pkt->direction].pkt_buffer, t->ssl_information[pkt->direction].pkt_size, &t->ssl_information[pkt->direction], pkt);
 		debug_print("Checked %d bytes and result %d\n", t->ssl_information[pkt->direction].pkt_size, res);
 		if(res > 0)
 		{

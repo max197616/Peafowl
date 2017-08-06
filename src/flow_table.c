@@ -120,6 +120,7 @@ typedef struct dpi_flow_DB_partition_specific_informations{
 	u_int32_t last_walk;
 	u_int32_t active_flows;
 	u_int32_t max_active_flows;
+	u_int32_t pool_miss;
 }dpi_flow_DB_partition_specific_informations_t;
 
 
@@ -212,6 +213,25 @@ struct dpi_flow_DB_v6{
 };
 
 
+//#if DPI_DEBUG_FLOW_TABLE
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+static void print_flow(ipv4_flow_t* iterator) {
+	struct in_addr src, dst;
+	src.s_addr = iterator->srcaddr;
+	dst.s_addr = iterator->dstaddr;
+	printf("%s -> ", inet_ntoa(src));
+	printf("%s : ", inet_ntoa(dst));
+
+	printf("%u -> ", ntohs(iterator->srcport));
+	printf("%u : ", ntohs(iterator->dstport));
+	printf("%u\n", iterator->l4prot);
+}
+//#endif
+
+
 #ifndef DPI_DEBUG
 static
 #endif
@@ -276,7 +296,7 @@ void dpi_flow_table_initialize_informations(
 	table_informations->lowest_index=lowest_index;
 	table_informations->highest_index=highest_index;
 	table_informations->max_active_flows=max_active_flows;
-
+	table_informations->pool_miss=0;
 	table_informations->last_walk=0;
 	table_informations->active_flows=0;
 }
@@ -712,6 +732,50 @@ void dpi_flow_table_check_expiration_v4(
 	}
 }
 
+void dpi_flow_table_check_expiration_v4_new(
+		dpi_flow_DB_v4_t* db,
+		dpi_flow_cleaner_callback* flow_cleaner_callback,
+		u_int16_t partition_id,
+		u_int32_t current_time,
+		u_int32_t index){
+	u_int32_t i;
+#if !DPI_USE_MTF
+	ipv4_flow_t* current;
+#endif
+//	i = index;
+	for(i=index;
+	    i<=db->partitions[partition_id].partition.
+			informations.highest_index; i++){
+		/**
+		 * Set the last timestamp for the sentinel node in such
+		 * a way that we simplify the loop over the list.
+		 **/
+		db->table[i].last_timestamp=current_time;
+#if DPI_USE_MTF
+		while(current_time-db->table[i].prev->last_timestamp>
+	            DPI_FLOW_TABLE_MAX_IDLE_TIME){
+			mc_dpi_flow_table_delete_flow_v4(db,
+					                         flow_cleaner_callback,
+					                         partition_id,
+					                         db->table[i].prev);
+		}
+#else
+		current=db->table[i].prev;
+		while(current!=&(db->table[i])){
+			if(current_time-db->table[i].prev->last_timestamp>
+	             DPI_FLOW_TABLE_MAX_IDLE_TIME){
+				mc_dpi_flow_table_delete_flow_v4(db,
+						                         flow_cleaner_callback,
+						                         partition_id,
+						                         db->table[i].prev);
+			}
+			current=current->prev;
+		}
+#endif
+	}
+}
+
+
 #ifndef DPI_DEBUG
 static
 #endif
@@ -737,8 +801,8 @@ void dpi_flow_table_check_expiration_v6(
 		 **/
 		db->table[i].last_timestamp=current_time;
 #if DPI_USE_MTF
-		while(current_time-db->table[i].prev->last_timestamp>
-					DPI_FLOW_TABLE_MAX_IDLE_TIME){
+		while(current_time-db->table[i].prev->last_timestamp > DPI_FLOW_TABLE_MAX_IDLE_TIME)
+		{
 			mc_dpi_flow_table_delete_flow_v6(db,
 					                         flow_cleaner_callback,
 					                         partition_id,
@@ -760,7 +824,7 @@ void dpi_flow_table_check_expiration_v6(
 	}
 }
 
-#if 0
+#if DPI_DEBUG_FLOW_TABLE
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -815,6 +879,7 @@ ipv4_flow_t* mc_dpi_flow_table_find_or_create_flow_v4(
 			iterator=&(db->partitions[partition_id].partition.
 					   memory_chunk_lower_bound[p]);
 		}else{
+			db->partitions[partition_id].partition.informations.pool_miss++;
 			debug_print("%s\n", "[flow_table.c]: New flow created, "
 					    " pool exhausted, allocating a new flow.");
 			iterator=v4_flow_alloc();
@@ -947,6 +1012,7 @@ ipv6_flow_t* mc_dpi_flow_table_find_or_create_flow_v6(
 			iterator=&(db->partitions[partition_id].partition.
 					   memory_chunk_lower_bound[p]);
 		}else{
+			db->partitions[partition_id].partition.informations.pool_miss++;
 			debug_print("%s\n", "[flow_table.c]: New flow created, "
 					    "pool exhausted, allocating a new flow.");
 			iterator=v6_flow_alloc();
@@ -1209,6 +1275,7 @@ void get_flow_stat_v4(void *dbi, struct flow_table_stat *stat)
 	{
 		stat->active_flows += db->partitions[i].partition.informations.active_flows;
 		stat->max_active_flows += db->partitions[i].partition.informations.max_active_flows;
+		stat->pool_miss += db->partitions[i].partition.informations.pool_miss;
 	}
 }
 
@@ -1223,6 +1290,7 @@ void get_flow_stat_v6(void *dbi, struct flow_table_stat *stat)
 	{
 		stat->active_flows += db->partitions[i].partition.informations.active_flows;
 		stat->max_active_flows += db->partitions[i].partition.informations.max_active_flows;
+		stat->pool_miss += db->partitions[i].partition.informations.pool_miss;
 	}
 }
 

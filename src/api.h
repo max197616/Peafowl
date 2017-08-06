@@ -117,6 +117,7 @@ struct flow_table_stat
 	uint16_t num_partitions;
 	uint64_t active_flows;
 	uint64_t max_active_flows;
+	uint32_t pool_miss;
 };
 
 
@@ -188,7 +189,7 @@ typedef void(dpi_flow_cleaner_callback)(void* flow_specific_user_data);
 /**
  * Called when ssl inspector seen certificate
 **/
-typedef void(dpi_ssl_certificate_callback)(char *certificate, int size, void *user_data);
+typedef void(dpi_ssl_certificate_callback)(char *certificate, int size, void *user_data, dpi_pkt_infos_t *pkt);
 
 /**
  * This callback is called when the corresponding header field is found.
