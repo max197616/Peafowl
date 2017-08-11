@@ -116,10 +116,6 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 		if(total_len <= 4)
 			return 0;
 
-		// skip big packets...
-//		if(total_len > MAX_PAYLOAD)
-//			return 0;
-
 		if(total_len > payload_len)
 		{
 			if(handshake_protocol == 0x01)
@@ -131,123 +127,120 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 		}
 
 
-		/* At least "magic" 3 bytes, null for string end, otherwise no need to waste cpu cycles */
+		int i;
+		if(handshake_protocol == 0x02 || handshake_protocol == 0xb)
 		{
-			int i;
-			if(handshake_protocol == 0x02 || handshake_protocol == 0xb)
+			u_int num_found = 0;
+			// Check after handshake protocol header (5 bytes) and message header (4 bytes)
+			for(i = 9; i < payload_len-3; i++)
 			{
-				u_int num_found = 0;
-				// Check after handshake protocol header (5 bytes) and message header (4 bytes)
-				for(i = 9; i < payload_len-3; i++)
+				if(((payload[i] == 0x04) && (payload[i+1] == 0x03) && (payload[i+2] == 0x0c))
+				|| ((payload[i] == 0x04) && (payload[i+1] == 0x03) && (payload[i+2] == 0x13))
+				|| ((payload[i] == 0x55) && (payload[i+1] == 0x04) && (payload[i+2] == 0x03)))
 				{
-					if(((payload[i] == 0x04) && (payload[i+1] == 0x03) && (payload[i+2] == 0x0c))
-					|| ((payload[i] == 0x04) && (payload[i+1] == 0x03) && (payload[i+2] == 0x13))
-					|| ((payload[i] == 0x55) && (payload[i+1] == 0x04) && (payload[i+2] == 0x03)))
+					u_int8_t server_len = payload[i+3];
+					if(payload[i] == 0x55)
 					{
-						u_int8_t server_len = payload[i+3];
-						if(payload[i] == 0x55)
+						num_found++;
+						if(num_found != 2)
+							continue;
+					}
+					if(server_len+i+3 < payload_len)
+					{
+						char *server_name = (char*)&payload[i+4];
+						u_int8_t begin = 0, j, num_dots, len;
+						while(begin < server_len)
 						{
-							num_found++;
-							if(num_found != 2)
-								continue;
+							if(!ndpi_isprint(server_name[begin]))
+								begin++;
+							else
+								break;
 						}
-						if(server_len+i+3 < payload_len)
+						len = server_len - begin;
+						for(j=begin, num_dots = 0; j<len; j++)
 						{
-							char *server_name = (char*)&payload[i+4];
-							u_int8_t begin = 0, j, num_dots, len;
-							while(begin < server_len)
+							if(!ndpi_isprint((server_name[j])))
 							{
-								if(!ndpi_isprint(server_name[begin]))
-									begin++;
-								else
+								num_dots = 0; // This is not what we look for
+								break;
+							} else if(server_name[j] == '.')
+							{
+								num_dots++;
+								if(num_dots >=2)
 									break;
 							}
-							len = server_len - begin;
-							for(j=begin, num_dots = 0; j<len; j++)
+						}
+						if(num_dots >= 2)
+						{
+							if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL && len > 0)
 							{
-								if(!ndpi_isprint((server_name[j])))
-								{
-									num_dots = 0; // This is not what we look for
-									break;
-								} else if(server_name[j] == '.')
-								{
-									num_dots++;
-									if(num_dots >=2)
-										break;
-								}
+								(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data, pkt);
 							}
-							if(num_dots >= 2)
-							{
-								if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL && len > 0)
-								{
-									(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data, pkt);
-								}
-								return 2;
-							}
+							return 2;
 						}
 					}
 				}
-				return 4;
-			} else if(handshake_protocol == 0x01 )
+			}
+			return 4;
+		} else if(handshake_protocol == 0x01 )
+		{
+			u_int offset, base_offset = 43;
+			if (base_offset + 2 <= payload_len)
 			{
-				u_int offset, base_offset = 43;
-				if (base_offset + 2 <= payload_len)
+				u_int16_t session_id_len = payload[base_offset];
+				if((session_id_len+base_offset+2) <= total_len)
 				{
-					u_int16_t session_id_len = payload[base_offset];
-					if((session_id_len+base_offset+2) <= total_len)
+					u_int16_t cypher_len =  payload[session_id_len+base_offset+2] + (payload[session_id_len+base_offset+1] << 8);
+					offset = base_offset + session_id_len + cypher_len + 2;
+					if(offset < total_len)
 					{
-						u_int16_t cypher_len =  payload[session_id_len+base_offset+2] + (payload[session_id_len+base_offset+1] << 8);
-						offset = base_offset + session_id_len + cypher_len + 2;
+						u_int16_t compression_len;
+						u_int16_t extensions_len;
+						compression_len = payload[offset+1];
+						offset += compression_len + 3;
 						if(offset < total_len)
 						{
-							u_int16_t compression_len;
-							u_int16_t extensions_len;
-							compression_len = payload[offset+1];
-							offset += compression_len + 3;
-							if(offset < total_len)
+							extensions_len = payload[offset];
+							if((extensions_len+offset) < total_len)
 							{
-								extensions_len = payload[offset];
-								if((extensions_len+offset) < total_len)
+								/* Move to the first extension
+								Type is u_int to avoid possible overflow on extension_len addition */
+								u_int extension_offset = 1;
+								while(extension_offset < extensions_len)
 								{
-									/* Move to the first extension
-									Type is u_int to avoid possible overflow on extension_len addition */
-									u_int extension_offset = 1;
-									while(extension_offset < extensions_len)
+									uint16_t extension_id = (payload[offset+extension_offset] << 8) + payload[offset+extension_offset+1];
+									extension_offset += 2;
+									uint16_t extension_len = (payload[offset+extension_offset] << 8) + payload[offset+extension_offset+1];
+									extension_offset += 2;
+									if(extension_len > total_len) /* bad ssl */
+										return 0;
+									if(extension_id == 0)
 									{
-										uint16_t extension_id = (payload[offset+extension_offset] << 8) + payload[offset+extension_offset+1];
-										extension_offset += 2;
-										uint16_t extension_len = (payload[offset+extension_offset] << 8) + payload[offset+extension_offset+1];
-										extension_offset += 2;
-										if(extension_len > total_len) /* bad ssl */
-											return 0;
-										if(extension_id == 0)
+										u_int begin = 0,len;
+										char *server_name = (char*)&payload[offset+extension_offset];
+										if(payload[offset+extension_offset+2] == 0x00) // host_name
+											begin =+ 5;
+										while(begin < extension_len)
 										{
-											u_int begin = 0,len;
-											char *server_name = (char*)&payload[offset+extension_offset];
-											if(payload[offset+extension_offset+2] == 0x00) // host_name
-												begin =+ 5;
-											while(begin < extension_len)
-											{
-												if((!ndpi_isprint(server_name[begin])) || ndpi_ispunct(server_name[begin]) || ndpi_isspace(server_name[begin]))
-													begin++;
-												else
-													break;
-											}
-											len = extension_len - begin;
-											if(len > total_len)
-											{
-												return 0; /* bad ssl */
-											}
-											if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL && len > 0)
-											{
-												(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data, pkt);
-											}
-											return 2;
+											if((!ndpi_isprint(server_name[begin])) || ndpi_ispunct(server_name[begin]) || ndpi_isspace(server_name[begin]))
+												begin++;
+											else
+												break;
 										}
-										extension_offset += extension_len;
+										len = extension_len - begin;
+										if(len > total_len)
+										{
+											return 0; /* bad ssl */
+										}
+										if(t->callbacks != NULL && t->callbacks->certificate_callback != NULL && len > 0)
+										{
+											(*(t->callbacks->certificate_callback))(&server_name[begin], len, t->callbacks_user_data, pkt);
+										}
+										return 2;
 									}
-									return 4; // SSL, but no certificate
+									extension_offset += extension_len;
 								}
+								return 4; // SSL, but no certificate
 							}
 						}
 					}

@@ -266,12 +266,12 @@ dpi_tcp_reordering_reordered_segment_t
 		 * TCP connection is also terminated if RST flag is received. 
 		 **/
 #ifndef DPI_MIRROR_MODE
-		if(tracking->seen_rst || (BIT_IS_SET(tracking->seen_fin, 0) &&
+		if(BIT_IS_SET(tracking->seen_fin, 0) &&
 		   BIT_IS_SET(tracking->seen_fin, 1) &&
 		   tracking->segments[0]==NULL &&
-		   tracking->segments[1]==NULL)){
+		   tracking->segments[1]==NULL){
 #else
-		if(tracking->seen_rst || (BIT_IS_SET(tracking->seen_fin,0) && tracking->segments[0] == NULL)){
+		if(BIT_IS_SET(tracking->seen_fin,0) && tracking->segments[0] == NULL){
 #endif
 			to_return.connection_terminated=1;
 		}
@@ -366,10 +366,10 @@ u_int8_t dpi_reordering_tcp_track_connection_light(
 	 * terminated and we can delete the flow informations.
 	 **/
 #ifndef DPI_MIRROR_MODE
-	if(tracking->seen_rste || (BIT_IS_SET(tracking->seen_fin, 0) &&
-	   BIT_IS_SET(tracking->seen_fin, 1))){
+	if(BIT_IS_SET(tracking->seen_fin, 0) &&
+	   BIT_IS_SET(tracking->seen_fin, 1)){
 #else
-	if(tracking->seen_rst || (BIT_IS_SET(tracking->seen_fin, 0))){
+	if(BIT_IS_SET(tracking->seen_fin, 0)){
 #endif
 		return 1;
 	}
@@ -456,12 +456,6 @@ dpi_tcp_reordering_reordered_segment_t dpi_reordering_tcp_track_connection(
 	     */
 	    return dpi_reordering_tcp_analyze_sequence_numbers(pkt, tracking);
 	}else{
-		if(tcph->rst == 1)
-		{
-			tracking->seen_rst = 1;
-			to_return.connection_terminated = 1;
-			return to_return;
-		}
 		/**
 		 *  Received segments from connections from which we didn't see
 		 *  the syn. We observe the sequence numbers and acknowledgment

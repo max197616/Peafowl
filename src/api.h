@@ -346,8 +346,6 @@ typedef struct dpi_ssl_internal_information
 	void *callbacks_user_data;
 	uint8_t *pkt_buffer;
 	int pkt_size;
-//	char *client_certificate;
-//	char *server_certificate;
 	uint8_t ssl_detected;
 } dpi_ssl_internal_information_t;
 
