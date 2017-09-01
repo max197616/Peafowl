@@ -39,7 +39,7 @@
 #include <assert.h>
 
 
-#define DPI_DEBUG_TCP_REORDERING 0
+#define DPI_DEBUG_TCP_REORDERING 1
 #define debug_print(fmt, ...)                  \
             do { if (DPI_DEBUG_TCP_REORDERING) \
             fprintf(stdout, fmt, __VA_ARGS__); } while (0)
@@ -455,7 +455,24 @@ dpi_tcp_reordering_reordered_segment_t dpi_reordering_tcp_track_connection(
 	     * exit from the function and we analyze the sequence numebers.
 	     */
 	    return dpi_reordering_tcp_analyze_sequence_numbers(pkt, tracking);
+#ifdef DPI_MIRROR_MODE
+	}else if(tcph->syn != 0 && tcph->ack == 0 && tracking->seen_syn == 1)
+	{
+		tracking->seen_syn=1;
+		tracking->expected_seq_num[pkt->direction]=ntohl(tcph->seq)+1;
+
+		debug_print("%s\n", "TCP Reuse connection - syn received.");
+		debug_print("Chosen sequence number: %"PRIu32" for direction: "
+				    "%d\n", tracking->expected_seq_num[pkt->direction],
+				    pkt->direction);
+
+		to_return.status=DPI_TCP_REORDERING_STATUS_IN_ORDER;
+		tracking->seen_syn_ack = 1;
+		return to_return;
+		
+#endif
 	}else{
+		debug_print("%d %d %d %d %d\n", tcph->syn, tcph->ack, tracking->seen_syn, tracking->seen_syn_ack, tracking->seen_ack);
 		/**
 		 *  Received segments from connections from which we didn't see
 		 *  the syn. We observe the sequence numbers and acknowledgment
