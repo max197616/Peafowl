@@ -39,7 +39,7 @@
 #include <assert.h>
 
 
-#define DPI_DEBUG_TCP_REORDERING 1
+#define DPI_DEBUG_TCP_REORDERING 0
 #define debug_print(fmt, ...)                  \
             do { if (DPI_DEBUG_TCP_REORDERING) \
             fprintf(stdout, fmt, __VA_ARGS__); } while (0)
