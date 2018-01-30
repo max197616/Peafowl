@@ -68,6 +68,20 @@ u_int8_t dpi_http_activate_callbacks(dpi_library_state_t* state, dpi_http_callba
 	}
 }
 
+u_int8_t dpi_http_activate_ext_callbacks(dpi_library_state_t* state, dpi_external_http_callbacks_t* callbacks, void* user_data)
+{
+	if(state != NULL && callbacks != NULL)
+	{
+		BITSET(state->tcp_protocols_to_inspect, DPI_PROTOCOL_TCP_HTTP);
+		BITSET(state->tcp_active_callbacks, DPI_PROTOCOL_TCP_HTTP);
+		state->http_callbacks_user_data = user_data;
+		state->external_http_callbacks = callbacks;
+		return DPI_STATE_UPDATE_SUCCESS;
+	}else{
+		return DPI_STATE_UPDATE_FAILURE;
+	}
+}
+
 /**
  * Disable the HTTP callbacks. user_data is not freed/modified.
  * @param state       A pointer to the state of the library.
@@ -79,6 +93,18 @@ u_int8_t dpi_http_disable_callbacks(dpi_library_state_t* state){
 		BITCLEAR(state->tcp_active_callbacks, DPI_PROTOCOL_TCP_HTTP);
 		state->http_callbacks=NULL;
 		state->http_callbacks_user_data=NULL;
+		return DPI_STATE_UPDATE_SUCCESS;
+	}else{
+		return DPI_STATE_UPDATE_FAILURE;
+	}
+}
+
+u_int8_t dpi_http_disable_ext_callbacks(dpi_library_state_t* state){
+	if(state != NULL)
+	{
+		BITCLEAR(state->tcp_active_callbacks, DPI_PROTOCOL_TCP_HTTP);
+		state->external_http_callbacks = NULL;
+		state->http_callbacks_user_data = NULL;
 		return DPI_STATE_UPDATE_SUCCESS;
 	}else{
 		return DPI_STATE_UPDATE_FAILURE;
@@ -281,6 +307,32 @@ u_int8_t invoke_callbacks_http(dpi_library_state_t* state, dpi_pkt_infos_t* pkt,
 	}
 }
 
+static int on_url_external(http_parser* parser, const char *at, size_t length)
+{
+	dpi_http_internal_informations_t* infos = (dpi_http_internal_informations_t*) parser->data;
+	dpi_external_http_callbacks_t* callbacks = infos->ext_callbacks;
+	return (*callbacks->on_url)(parser, at, length, infos->pkt_informations, infos->flow_specific_user_data, infos->user_data);
+}
+
+static int on_header_field_external(http_parser* parser, const char *at, size_t length)
+{
+	dpi_http_internal_informations_t* infos = (dpi_http_internal_informations_t*) parser->data;
+	dpi_external_http_callbacks_t* callbacks = infos->ext_callbacks;
+	return (*callbacks->on_header_field)(parser, at, length, infos->pkt_informations, infos->flow_specific_user_data, infos->user_data);
+}
+
+static int on_header_value_external(http_parser* parser, const char *at, size_t length)
+{
+	dpi_http_internal_informations_t* infos = (dpi_http_internal_informations_t*) parser->data;
+	dpi_external_http_callbacks_t* callbacks = infos->ext_callbacks;
+	return (*callbacks->on_header_value)(parser, at, length, infos->pkt_informations, infos->flow_specific_user_data, infos->user_data);
+}
+
+static int on_headers_complete_external(http_parser* parser)
+{
+	dpi_http_internal_informations_t* infos=(dpi_http_internal_informations_t*) parser->data;
+	return (*(infos->ext_callbacks->on_headers_complete))(parser, infos->pkt_informations, infos->flow_specific_user_data, infos->user_data);
+}
 
 /**
  * I decided to avoid the concept of subprotocol. This indeed can easily be derived from host address so the user can include this identification
@@ -302,6 +354,7 @@ u_int8_t check_http(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsi
 		bzero(&(tracking->http_informations[pkt->direction]), sizeof(dpi_http_internal_informations_t));
 
 		tracking->http_informations[pkt->direction].callbacks=((dpi_http_callbacks_t*) state->http_callbacks);
+		tracking->http_informations[pkt->direction].ext_callbacks = (dpi_external_http_callbacks_t *)state->external_http_callbacks;
 		tracking->http_informations[pkt->direction].user_data=state->http_callbacks_user_data;
 		tracking->http_informations[pkt->direction].flow_specific_user_data=&(tracking->flow_specific_user_data);
 
@@ -311,41 +364,55 @@ u_int8_t check_http(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsi
 
 	http_parser_settings x = { 0 };
 
-	if(state->http_callbacks){
-		if(((dpi_http_callbacks_t*) state->http_callbacks)->header_url_callback!=NULL)
-			x.on_url=on_url;
-		else
-			x.on_url=0;
+	if(state->external_http_callbacks)
+	{
+		dpi_external_http_callbacks_t *cb = (dpi_external_http_callbacks_t *)state->external_http_callbacks;
+		// setup external callbacks...
+		if(cb->on_url != NULL)
+			x.on_url = on_url_external;
+		if(cb->on_header_field != NULL)
+			x.on_header_field = on_header_field_external;
+		if(cb->on_header_value != NULL)
+			x.on_header_value = on_header_value_external;
+		if(cb->on_headers_complete != NULL)
+			x.on_headers_complete = on_headers_complete_external;
+	} else {
+		if(state->http_callbacks){
+			if(((dpi_http_callbacks_t*) state->http_callbacks)->header_url_callback!=NULL)
+				x.on_url=on_url;
+			else
+				x.on_url=0;
 
-		if(((dpi_http_callbacks_t*) state->http_callbacks)->http_body_callback!=NULL)
-			x.on_body=on_body;
-		else
-			x.on_body=0;
+			if(((dpi_http_callbacks_t*) state->http_callbacks)->http_body_callback!=NULL)
+				x.on_body=on_body;
+			else
+				x.on_body=0;
 
-		if(((dpi_http_callbacks_t*) state->http_callbacks)->num_header_types!=0){
-			x.on_header_field=on_field;
-			x.on_header_value=on_value;
+			if(((dpi_http_callbacks_t*) state->http_callbacks)->num_header_types!=0){
+				x.on_header_field=on_field;
+				x.on_header_value=on_value;
+			}else{
+				x.on_header_field=0;
+				x.on_header_value=0;
+			}
+	
+			if(((dpi_http_callbacks_t*) state->http_callbacks)->header_completion_callback!=NULL)
+				x.on_headers_complete=on_header_complete;
+			else
+				x.on_headers_complete=0;
+			x.on_message_begin=0;
+			x.on_message_complete=0;
 		}else{
+			/** If there are no user callbacks, we can avoid to do PDU reassembly. **/
+			free(((dpi_http_internal_informations_t*) parser->data)->temp_buffer);
+			x.on_body=0;
 			x.on_header_field=0;
 			x.on_header_value=0;
-		}
-
-		if(((dpi_http_callbacks_t*) state->http_callbacks)->header_completion_callback!=NULL)
-			x.on_headers_complete=on_header_complete;
-		else
 			x.on_headers_complete=0;
-		x.on_message_begin=0;
-		x.on_message_complete=0;
-	}else{
-		/** If there are no user callbacks, we can avoid to do PDU reassembly. **/
-		free(((dpi_http_internal_informations_t*) parser->data)->temp_buffer);
-		x.on_body=0;
-		x.on_header_field=0;
-		x.on_header_value=0;
-		x.on_headers_complete=0;
-		x.on_message_begin=0;
-		x.on_message_complete=0;
-		x.on_url=0;
+			x.on_message_begin=0;
+			x.on_message_complete=0;
+			x.on_url=0;
+		}
 	}
 
 	http_parser_execute(parser, &x, (const char*) app_data, data_length);

@@ -214,6 +214,14 @@ typedef void(dpi_http_header_url_callback)(
 		         void** flow_specific_user_data,
 		         void* user_data);
 
+typedef int(dpi_external_http_header_url_callback)(
+			 http_parser *p,
+		         const char* url,
+		         size_t url_length,
+		         dpi_pkt_infos_t* pkt_informations,
+		         void** flow_specific_user_data,
+		         void* user_data);
+
 
 /**
  * This callback is called when the corresponding header field is found.
@@ -247,6 +255,22 @@ typedef void(dpi_http_header_field_callback)(
 		       void** flow_specific_user_data,
 		       void* user_data);
 
+typedef int(dpi_external_http_header_field_callback)(
+		       http_parser* parser,
+		       const char* header,
+		       size_t header_length,
+		       dpi_pkt_infos_t* pkt_informations,
+		       void** flow_specific_user_data,
+		       void* user_data);
+
+typedef int(dpi_external_http_header_value_callback)(
+		       http_parser* parser,
+		       const char* value,
+		       size_t value_length,
+		       dpi_pkt_infos_t* pkt_informations,
+		       void** flow_specific_user_data,
+		       void* user_data);
+
 /**
  * This callback is called when the HTTP header processing is finished.
  * This can be useful to distinguish the case in which a callback has
@@ -265,6 +289,12 @@ typedef void(dpi_http_header_field_callback)(
  */
 typedef void(dpi_http_header_completion_callback)(
 		       dpi_http_message_informations_t* http_message_informations,
+		       dpi_pkt_infos_t* pkt_informations,
+		       void** flow_specific_user_data,
+		       void* user_data);
+
+typedef int(dpi_external_http_header_completion_callback)(
+		       http_parser* parser,
 		       dpi_pkt_infos_t* pkt_informations,
 		       void** flow_specific_user_data,
 		       void* user_data);
@@ -325,8 +355,17 @@ typedef struct dpi_http_callbacks{
 	dpi_http_body_callback* http_body_callback;
 }dpi_http_callbacks_t;
 
+typedef struct dpi_external_http_callbacks
+{
+	dpi_external_http_header_url_callback		*on_url;
+	dpi_external_http_header_field_callback		*on_header_field;
+	dpi_external_http_header_value_callback		*on_header_value;
+	dpi_external_http_header_completion_callback	*on_headers_complete;
+} dpi_external_http_callbacks_t;
+
 typedef struct dpi_http_internal_informations{
 	dpi_http_callbacks_t* callbacks;
+	dpi_external_http_callbacks_t *ext_callbacks;
 	dpi_pkt_infos_t* pkt_informations;
 	void** flow_specific_user_data;
 	void* user_data;
@@ -413,6 +452,7 @@ typedef struct dpi_tracking_informations{
 	dpi_ssl_internal_information_t ssl_information[2];
 }dpi_tracking_informations_t;
 
+
 typedef struct library_state dpi_library_state_t;
 
 /**
@@ -463,6 +503,7 @@ struct library_state{
 	/** HTTP callbacks. **/
 	void* http_callbacks;
 	void* http_callbacks_user_data;
+	void* external_http_callbacks;
 
 	/** SSL callbacks **/
 	void *ssl_callbacks;
@@ -480,6 +521,7 @@ struct library_state{
 	/********************************************************************/
 	void* ipv4_frag_state;
 	void* ipv6_frag_state;
+
 };
 
 /**
@@ -1010,6 +1052,11 @@ u_int8_t dpi_http_activate_callbacks(
 		       dpi_http_callbacks_t* callbacks,
 		       void* user_data);
 
+u_int8_t dpi_http_activate_ext_callbacks(
+		       dpi_library_state_t* state,
+		       dpi_external_http_callbacks_t* callbacks,
+		       void* user_data);
+
 /**
  * Disable the HTTP callbacks. user_data is not freed/modified.
  * @param state       A pointer to the state of the library.
@@ -1019,6 +1066,7 @@ u_int8_t dpi_http_activate_callbacks(
  */
 u_int8_t dpi_http_disable_callbacks(dpi_library_state_t* state);
 
+u_int8_t dpi_http_disable_ext_callbacks(dpi_library_state_t* state);
 
 /**
     SSL callbacks.

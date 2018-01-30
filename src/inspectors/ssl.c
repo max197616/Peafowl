@@ -277,6 +277,9 @@ u_int8_t invoke_callbacks_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, 
 	}
 }
 
+uint32_t ssl_max_packet_size = 0;
+uint64_t ssl_mallocs = 0;
+uint64_t ssl_reallocs = 0;
 
 u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsigned char* payload, u_int32_t data_length, dpi_tracking_informations_t* t)
 {
@@ -300,6 +303,7 @@ u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsig
 		{
 			if(res == 3)
 			{
+				ssl_mallocs++;
 				t->ssl_information[pkt->direction].pkt_buffer = (uint8_t *)malloc(data_length);
 				memcpy(t->ssl_information[pkt->direction].pkt_buffer, payload, data_length);
 				t->ssl_information[pkt->direction].pkt_size = data_length;
@@ -309,9 +313,12 @@ u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsig
 			return DPI_PROTOCOL_MATCHES;
 		}
 	} else {
+		ssl_reallocs++;
 		t->ssl_information[pkt->direction].pkt_buffer = (uint8_t *)realloc(t->ssl_information[pkt->direction].pkt_buffer, t->ssl_information[pkt->direction].pkt_size+data_length);
 		memcpy(t->ssl_information[pkt->direction].pkt_buffer+t->ssl_information[pkt->direction].pkt_size, payload, data_length);
 		t->ssl_information[pkt->direction].pkt_size += data_length;
+		if(t->ssl_information[pkt->direction].pkt_size > ssl_max_packet_size)
+			ssl_max_packet_size = t->ssl_information[pkt->direction].pkt_size;
 		res = detectSSLFromCertificate(t->ssl_information[pkt->direction].pkt_buffer, t->ssl_information[pkt->direction].pkt_size, &t->ssl_information[pkt->direction], pkt);
 		debug_print("Checked %d bytes and result %d\n", t->ssl_information[pkt->direction].pkt_size, res);
 		if(res > 0)
