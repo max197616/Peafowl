@@ -2,7 +2,7 @@ CC                   = gcc
 CXX                  = g++ 
 LINK_OPT             = 
 VERSION              = 
-OPTIMIZE_FLAGS       = -O3 -msse -msse2 -msse3 -mssse3
+OPTIMIZE_FLAGS       = -O3 -march=native
 CXXFLAGS             = -Wall
 CFLAGS               =
 LDFLAGS              = 
