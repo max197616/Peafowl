@@ -261,7 +261,7 @@ static int detectSSLFromCertificate(uint8_t *payload, int payload_len, dpi_ssl_i
 			return rc;
 		}
 	}
-	return 0;
+	return 3;
 }
 
 u_int8_t invoke_callbacks_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsigned char* app_data, u_int32_t data_length, dpi_tracking_informations_t* tracking)
