@@ -118,7 +118,7 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 
 		if(total_len > payload_len)
 		{
-			if(handshake_protocol == 0x01)
+			if(handshake_protocol == 0x01 && total_len < 10000)
 			{
 				return 3; // need more data
 			} else {
@@ -253,15 +253,19 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 
 static int detectSSLFromCertificate(uint8_t *payload, int payload_len, dpi_ssl_internal_information_t *t, dpi_pkt_infos_t* pkt)
 {
-	if((payload_len > 9) && (payload[0] == 0x16 /* consider only specific SSL packets (handshake) */))
+	if(payload[0] == 0x16)
 	{
-		int rc = getSSLcertificate(payload, payload_len, t, pkt);
-		if(rc > 0)
+		if(payload_len > 9)
 		{
-			return rc;
-		}
+			int rc = getSSLcertificate(payload, payload_len, t, pkt);
+			if(rc > 0)
+			{
+				return rc;
+			}
+		} else
+			return 3;
 	}
-	return 3;
+	return 0;
 }
 
 u_int8_t invoke_callbacks_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsigned char* app_data, u_int32_t data_length, dpi_tracking_informations_t* tracking)
