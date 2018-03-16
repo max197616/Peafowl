@@ -45,6 +45,26 @@ u_int8_t dpi_ssl_disable_callbacks(dpi_library_state_t* state)
 	}
 }
 
+u_int8_t dpi_ssl_activate_external_inspector(dpi_library_state_t* state, dpi_inspector_callback *cb)
+{
+	if(state && cb)
+	{
+		state->ssl_external_inspector = cb;
+		return DPI_STATE_UPDATE_SUCCESS;
+	}
+	return DPI_STATE_UPDATE_FAILURE;
+}
+
+u_int8_t dpi_ssl_disable_external_inspector(dpi_library_state_t* state)
+{
+	if(state)
+	{
+		state->ssl_external_inspector = NULL;
+		return DPI_STATE_UPDATE_SUCCESS;
+	}
+	return DPI_STATE_UPDATE_FAILURE;
+}
+
 
 /* implementation of the punycode check function */
 static int check_punycode_string(char * buffer , int len)
