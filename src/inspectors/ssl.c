@@ -118,7 +118,7 @@ static int getSSLcertificate(uint8_t *payload, u_int payload_len, dpi_ssl_intern
 
 		if(total_len > payload_len)
 		{
-			if(handshake_protocol == 0x01 && total_len < 10000)
+			if(handshake_protocol == 0x01 && total_len < 4000)
 			{
 				return 3; // need more data
 			} else {
@@ -293,6 +293,10 @@ u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsig
 	{
 		t->ssl_information[pkt->direction].callbacks = state->ssl_callbacks;
 		t->ssl_information[pkt->direction].callbacks_user_data = state->ssl_callbacks_user_data;
+	}
+	if(state->ssl_external_inspector != NULL)
+	{
+		return (*(state->ssl_external_inspector))(state, pkt, payload, data_length, t);
 	}
 	if(t->ssl_information[pkt->direction].ssl_detected == 1)
 	{

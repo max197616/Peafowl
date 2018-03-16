@@ -508,6 +508,7 @@ struct library_state{
 	/** SSL callbacks **/
 	void *ssl_callbacks;
 	void *ssl_callbacks_user_data;
+	dpi_inspector_callback* ssl_external_inspector;
 
 	u_int8_t tcp_reordering_enabled:1;
 
