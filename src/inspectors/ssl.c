@@ -45,11 +45,12 @@ u_int8_t dpi_ssl_disable_callbacks(dpi_library_state_t* state)
 	}
 }
 
-u_int8_t dpi_ssl_activate_external_inspector(dpi_library_state_t* state, dpi_inspector_callback *cb)
+u_int8_t dpi_ssl_activate_external_inspector(dpi_library_state_t* state, dpi_inspector_callback cb, void *user_data)
 {
 	if(state && cb)
 	{
 		state->ssl_external_inspector = cb;
+		state->ssl_external_inspector_user_data = user_data;
 		return DPI_STATE_UPDATE_SUCCESS;
 	}
 	return DPI_STATE_UPDATE_FAILURE;
@@ -309,14 +310,14 @@ u_int8_t check_ssl(dpi_library_state_t* state, dpi_pkt_infos_t* pkt, const unsig
 {
 	int res;
 	debug_print("Checking ssl with size %d, direction %d\n", data_length, pkt->direction);
+	if(state->ssl_external_inspector != NULL)
+	{
+		return (*(state->ssl_external_inspector))(state, pkt, payload, data_length, t);
+	}
 	if(state->ssl_callbacks != NULL)
 	{
 		t->ssl_information[pkt->direction].callbacks = state->ssl_callbacks;
 		t->ssl_information[pkt->direction].callbacks_user_data = state->ssl_callbacks_user_data;
-	}
-	if(state->ssl_external_inspector != NULL)
-	{
-		return (*(state->ssl_external_inspector))(state, pkt, payload, data_length, t);
 	}
 	if(t->ssl_information[pkt->direction].ssl_detected == 1)
 	{

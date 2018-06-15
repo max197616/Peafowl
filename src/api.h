@@ -386,6 +386,7 @@ typedef struct dpi_ssl_internal_information
 	uint8_t *pkt_buffer;
 	int pkt_size;
 	uint8_t ssl_detected;
+	void *mempool;
 } dpi_ssl_internal_information_t;
 
 /** This must be initialized to zero before use. **/
@@ -476,7 +477,6 @@ typedef u_int8_t(*dpi_inspector_callback)(
 		         u_int32_t data_length,
 		         dpi_tracking_informations_t* tracking);
 
-
 struct library_state{
 	/********************************************************************/
 	/** Created by dpi_init_state and never modified                   **/
@@ -508,7 +508,9 @@ struct library_state{
 	/** SSL callbacks **/
 	void *ssl_callbacks;
 	void *ssl_callbacks_user_data;
-	dpi_inspector_callback* ssl_external_inspector;
+	/** External SSL inspector and data **/
+	dpi_inspector_callback ssl_external_inspector;
+	void *ssl_external_inspector_user_data;
 
 	u_int8_t tcp_reordering_enabled:1;
 
@@ -1078,7 +1080,7 @@ u_int8_t dpi_ssl_activate_callbacks(
 		       void* user_data);
 u_int8_t dpi_ssl_disable_callbacks(dpi_library_state_t* state);
 
-u_int8_t dpi_ssl_activate_external_inspector(dpi_library_state_t* state, dpi_inspector_callback *cb);
+u_int8_t dpi_ssl_activate_external_inspector(dpi_library_state_t* state, dpi_inspector_callback cb, void *user_data);
 u_int8_t dpi_ssl_disable_external_inspector(dpi_library_state_t* state);
 
 
