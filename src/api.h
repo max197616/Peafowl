@@ -160,6 +160,7 @@ typedef struct dpi_pkt_infos{
 	}dst_addr_t;
 	/** Time when the library started the processing (in seconds). **/
 	u_int32_t processing_time;
+	const uint8_t *l2_pkt; // offset to the l2 header of the packet
 }dpi_pkt_infos_t;
 
 typedef struct dpi_http_message_informations{
